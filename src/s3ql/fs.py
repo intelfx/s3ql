@@ -181,7 +181,7 @@ class Operations(pyfuse3.Operations):
         return id_
 
     async def readdir(self, id_, off, token):
-        log.debug('started with %d, %d', id_, off)
+        log.error(f'readdir(self={self}, id_={id_}, off={off}, token={token}')
         if off == 0:
             off = -1
 
@@ -191,9 +191,12 @@ class Operations(pyfuse3.Operations):
 
         # NFS treats offsets 1 and 2 special, so we have to exclude
         # them.
+        p = time.perf_counter()
         with self.db.query("SELECT name_id, name, inode FROM contents_v "
                            'WHERE parent_inode=? AND name_id > ? ORDER BY name_id',
                            (id_, off-3)) as res:
+            p = time.perf_counter() - p
+            log.error(f'readdir(self={self}, id_={id_}, off={off}, token={token}: query took {p} seconds')
             for (next_, name, cid_) in res:
                 if not pyfuse3.readdir_reply(
                     token, name, self.inodes[cid_].entry_attributes(), next_+3):
