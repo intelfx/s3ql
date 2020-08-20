@@ -89,7 +89,6 @@ def restore_metadata(fh, dbfile):
         db = Connection(tmpfile)
         db.execute('PRAGMA locking_mode = NORMAL')
         db.execute('PRAGMA synchronous = OFF')
-        db.execute('PRAGMA journal_mode = OFF')
         create_tables(db)
 
         for (table, _, columns) in DUMP_SPEC:
