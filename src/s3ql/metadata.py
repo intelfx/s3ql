@@ -146,19 +146,21 @@ def dump_metadata(db, fh):
     its `fileno` method.
     '''
 
-    locking_mode = db.get_val('PRAGMA locking_mode')
+    exclusive = db.exclusive
     try:
-        # Ensure that we don't hold a lock on the db
-        # (need to access DB to actually release locks)
-        db.execute('PRAGMA locking_mode = NORMAL')
-        db.has_val('SELECT rowid FROM %s LIMIT 1' % DUMP_SPEC[0][0])
+        # Revert to normal locking mode to allow dump_table()
+        # to open additional connections to the database.
+        # However, locking_mode cannot be changed on an existing connection
+        # once WAL is enabled.
+        # Therefore, reopen the database connection.
+        db.reopen(exclusive=False)
 
         for (table, order, columns) in DUMP_SPEC:
             log.info('..%s..', table)
             dump_table(table, order, columns, db=db, fh=fh)
 
     finally:
-        db.execute('PRAGMA locking_mode = %s' % locking_mode)
+        db.reopen(exclusive=exclusive)
 
 
 def create_tables(conn):
