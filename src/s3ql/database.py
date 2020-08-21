@@ -29,7 +29,7 @@ initsql = (
            'PRAGMA journal_mode = WAL',
 
            'PRAGMA foreign_keys = OFF',
-           'PRAGMA locking_mode = EXCLUSIVE',
+           'PRAGMA locking_mode = %s',
            'PRAGMA recursize_triggers = on',
            'PRAGMA page_size = 4096',
            'PRAGMA wal_autocheckpoint = 25000',
@@ -54,13 +54,16 @@ class Connection(object):
     :conn:     apsw connection object
     '''
 
-    def __init__(self, file_):
+    def __init__(self, file_, exclusive=True):
         self.conn = apsw.Connection(file_)
         self.file = file_
+        self.exclusive = exclusive
 
         cur = self.conn.cursor()
 
         for s in initsql:
+            if 'locking_mode' in s:
+                s = s % ('EXCLUSIVE' if exclusive else 'NORMAL')
             cur.execute(s)
 
     def close(self):
