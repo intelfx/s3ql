@@ -69,6 +69,10 @@ class Connection(object):
     def close(self):
         self.conn.close()
 
+    def reopen(self, **kwargs):
+        self.close()
+        self.__init__(self.file, **kwargs)
+
     def get_size(self):
         '''Return size of database file'''
 
