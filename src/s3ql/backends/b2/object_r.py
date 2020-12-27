@@ -46,7 +46,7 @@ class ObjectR(object):
             self.sha1_checked = True
             if remote_sha1 != self.sha1.hexdigest():
                 log.warning('SHA1 mismatch for %s: %s vs %s', self.key, remote_sha1, self.sha1.hexdigest())
-                raise BadDigestError(400, 'bad_digest', 'SHA1 header does not agree with calculated SHA1')
+                raise BadDigestError(400, 'bad_digest', 'SHA1 mismatch for %s' % self.key)
 
         return buffer
 

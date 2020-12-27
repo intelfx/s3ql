@@ -20,3 +20,9 @@ class B2Error(HTTPError):
 
 
 class BadDigestError(B2Error): pass
+class UnauthorizedError(B2Error): pass
+class ForbiddenError(B2Error): pass
+class RequestTimeoutError(B2Error): pass
+class TooManyRequestsError(B2Error): pass
+class InternalError(B2Error): pass
+class ServiceUnavailableError(B2Error): pass

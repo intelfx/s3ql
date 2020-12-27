@@ -67,7 +67,7 @@ class ObjectW(object):
             try:
                 self.backend.delete(self.key)
             finally:
-                raise BadDigestError(400, 'bad_digest', 'Sha1 mismatch for %s' % self.key)
+                raise BadDigestError(400, 'bad_digest', 'SHA1 mismatch for %s' % self.key)
 
         self.fh.close()
         self.closed = True

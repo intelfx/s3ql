@@ -28,7 +28,7 @@ from ... import BUFSIZE
 from ..s3c import HTTPError
 from .object_r import ObjectR
 from .object_w import ObjectW
-from .b2_error import B2Error, BadDigestError
+from .b2_error import *
 
 log = logging.getLogger(__name__)
 
@@ -202,6 +202,7 @@ class B2Backend(AbstractBackend, metaclass=ABCDocstMeta):
         needed_capabilities = [ 'listBuckets', 'listFiles', 'readFiles', 'writeFiles', 'deleteFiles' ]
         return all(capability in capabilities for capability in needed_capabilities)
 
+
     def _do_request(self, connection, method, path, headers=None, body=None, download_body=True):
         '''Send request, read and return response object'''
 
@@ -242,16 +243,29 @@ class B2Backend(AbstractBackend, metaclass=ABCDocstMeta):
         content_length = response.headers.get('Content-Length', '0')
         log.debug('RESPONSE: %s %s %s %s', response.method, response.status, response.reason, content_length)
 
-        if (response.status == 404 or # File not found
-            (response.status != 200 and method == 'HEAD')): # HEAD responses do not have a body -> we have to raise a HTTPError with the code
-            raise HTTPError(response.status, response.reason, response.headers)
-
         if response.status != 200:
-            json_error_response = json.loads(response_body.decode('utf-8')) if response_body else None
-            code = json_error_response['code'] if json_error_response else None
-            message = json_error_response['message'] if json_error_response else response.reason
-            b2_error = B2Error(json_error_response['status'], code, message, response.headers)
-            raise b2_error
+            error_json = json.loads(response_body.decode('utf-8')) if response_body else None
+
+            code = error_json['code'] if error_json else None
+            message = error_json['message'] if error_json else response.reason
+            status = error_json['status'] if error_json else response.status
+
+            error = B2Error
+            if status == 400 and code == 'bad_request' and message == 'Checksum did not match data received':
+                error = BadDigestError
+            elif status == 401:
+                error = UnauthorizedError
+            elif status == 403:
+                error = ForbiddenError
+            elif status == 408:
+                error = RequestTimeoutError
+            elif status == 429:
+                error = TooManyRequestsError
+            elif status == 500:
+                error = InternalError
+            elif status == 503:
+                error = ServiceUnavailableError
+            raise error(status, code, message, response.headers)
 
         return response, response_body
 
@@ -270,7 +284,7 @@ class B2Backend(AbstractBackend, metaclass=ABCDocstMeta):
 
         try:
             response, body = self._do_request(self._get_download_connection(), method, path, download_body=False)
-        except HTTPError as exc:
+        except B2Error as exc:
             if exc.status == 404:
                 raise NoSuchObject(key)
             else:
@@ -289,21 +303,9 @@ class B2Backend(AbstractBackend, metaclass=ABCDocstMeta):
 
         try:
             response, response_body = self._do_request(upload_url_info['connection'], 'POST', upload_url_info['path'], headers, body)
-        except B2Error as exc:
-            if exc.status == 503:
-                # storage url too busy, change it
-                self._invalidate_upload_url(upload_url_info)
-
-            raise
-
-        except (ConnectionClosed, ConnectionTimedOut):
-            # storage url too busy, change it
-            self._invalidate_upload_url(upload_url_info)
-            raise
 
         except Exception as exc:
-            if is_temp_network_error(exc) or isinstance(exc, ssl.SSLError):
-                # we better get a new upload url
+            if self.is_upload_url_failure(exc):
                 self._invalidate_upload_url(upload_url_info)
             else:
                 upload_url_info['connection'].reset()
@@ -365,14 +367,9 @@ class B2Backend(AbstractBackend, metaclass=ABCDocstMeta):
               self.retry_on_cap_exceeded):
             return True
 
-        elif isinstance(exc, HTTPError) and exc.status == 401:
-            self._reset_authorization_values()
-            return True
-
-        elif (isinstance(exc, HTTPError) and
-              ((500 <= exc.status <= 599) or # server errors
-               exc.status == 408 or # request timeout
-               exc.status == 429)): # too many requests
+        elif isinstance(exc, (BadDigestError, RequestTimeoutError,
+                              TooManyRequestsError, InternalError,
+                              ServiceUnavailableError)):
             return True
 
         # Consider all SSL errors as temporary. There are a lot of bug
@@ -381,6 +378,17 @@ class B2Backend(AbstractBackend, metaclass=ABCDocstMeta):
         # no information if this ever revealed a problem where retrying
         # was not the right choice.
         elif isinstance(exc, ssl.SSLError):
+            return True
+
+        return False
+
+    def is_upload_url_failure(self, exc):
+        if is_temp_network_error(exc) or isinstance(exc, ssl.SSLError):
+            # we better get a new upload url
+            return True
+
+        elif isinstance(exc, (UnauthorizedError, ServiceUnavailableError,
+                              ConnectionClosed, ConnectionTimedOut)):
             return True
 
         return False
