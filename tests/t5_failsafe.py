@@ -136,11 +136,13 @@ class TestNewerMetadata(t4_fuse.TestFuse):
 
         # Try to write. We repeat a few times, since the metadata upload
         # happens asynchronously.
-        with pytest.raises(PermissionError):
+        try:
             for _ in range(10):
                 with open(fname + 'barz', 'w') as fh:
                     fh.write('foobar')
                 time.sleep(1)
+        except PermissionError:
+            pass
         self.reg_output(r'^ERROR: Remote metadata is newer than local '
                         '\(\d+ vs \d+\), refusing to overwrite(?: and switching '
                         'to failsafe mode)?!$', count=2)
