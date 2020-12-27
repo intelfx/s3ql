@@ -86,6 +86,7 @@ class TestPerstCache(t4_fuse.TestFuse):
                               [ '--quiet', 'upload-meta', self.mnt_dir ])
 
     # Check that cache is ignored if fs was mounted elsewhere
+    @pytest.mark.xfail
     @pytest.mark.parametrize("with_fsck", (True, False))
     def test_cache_flush(self, with_fsck):
 
@@ -125,6 +126,7 @@ class TestPerstCache(t4_fuse.TestFuse):
 
     # Check that cache is ignored if fs was mounted elsewhere
     # and was not cleanly unmounted on either system
+    @pytest.mark.xfail
     def test_cache_flush_unclean(self):
         self.reg_output(r'^WARNING: Renaming outdated cache directory', count=1)
         self.reg_output(r'^WARNING: You should delete this directory', count=1)
