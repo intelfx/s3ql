@@ -324,4 +324,4 @@ def upload_metadata(backend, fh, param):
              pretty_print_size(obj_fh.get_obj_size()))
 
     log.info('Cycling metadata backups...')
-    cycle_metadata(backend)
+    cycle_metadata(backend, keep=0)
